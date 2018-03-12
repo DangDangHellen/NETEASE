@@ -1,0 +1,326 @@
+<html>
+	<head>
+		<meta charset='utf-8' />
+		<link rel="stylesheet" href="./css/index.css">
+	</head>
+	<body>
+		<h4>简易备忘录</h4>
+		<div id="demo">
+			<div id="datebox">
+				<input type="text" id='datepick' />
+			</div>
+			<div id="todobox">
+				<input type="text" id='todolist' />
+				<input type="button" id="search" value="查询" />
+				<div id="todoitems"></div>
+				<div id="todoitem-template" style="display:none">
+					<textarea name="jst" id="jst-template-1">
+						<ul>
+							{list arr as x}
+								<li class=index-${x.id}>
+									<label style="display:none">${x.id}</label>
+									<span id='checkbox' class=${x.status == "completed" ? 'checked' : 'unchecked'}></span>
+									<input class=${x.status == "completed" ? 'completed' : 'edit'}	value=${x.value} /> 
+									<span class="dd">${x.date}</span>
+									<button id="del" class='destroy'>${x.id}</button>
+								</li>
+							{/list}
+						</ul>
+						<div id="selectcard">
+							<span>${arrAll.length} ${arrAll.length == 1 ? "item" : "items"} left</span>
+							<input type="button" id="all" value="All" />
+							<input type="button" id="completed" value="Completed" />
+							<input type="button" id="active" value="Active" />
+						</div>
+					</textarea>
+				</div>
+				<textarea name="css" id="template-box-1">
+					#todoitems ul{
+						margin-top:0px;
+						padding: 0px;
+					}
+					#todoitems li{
+						position:relative;
+						height:45px;
+						line-height:45px;
+						color: rgba(175, 47, 47, 0.5);
+						font-weight:bold;
+						width:390px;
+						padding-left:10px;
+						text-decoration:none;
+						list-style:none;
+						border-bottom: 1px solid rgba(128, 128, 128, 0.37);
+					}
+					.completed {
+						font-weight:bold;
+						font-size:17px;
+						font-family: fantasy;
+						border:none;
+						text-decoration: line-through;
+						color: rgba(175, 47, 47, 0.2);
+					}
+					#todoitems li .dd{
+						font-size:10px;
+						color: grey;
+						font-style:italic;
+					}
+					#checkbox {
+						display:inline-block;
+						width: 16px;
+					    height: 16px;
+					    vertical-align: middle;
+					}
+					.checked {
+						background: url('./image/checked.png') no-repeat;
+					}
+					.unchecked {
+						background: url('./image/unchecked.png') no-repeat;
+					}
+					.destroy{
+						color:rgba(1,1,1,0);
+						display: none;
+						position: absolute;
+						top: 14px;
+    					right: 25px;
+						width: 16px;
+    					line-height: 20px;
+    					background: url(./image/delete.png) no-repeat center center;
+    					height: 16px;
+    					border: none;
+    					vertical-align: sub;
+    					transition: all 0.3s ease-out;
+    					cursor:auto;
+					}
+					.edit {
+						font-weight:bold;
+						font-size:17px;
+						font-family: fantasy;
+						color: rgba(175, 47, 47, 0.5);
+						border:none;
+					}
+					#selectcard {
+						padding-bottom: 10px;
+    					padding-left: 15px;
+					}
+					#selectcard span {
+						margin-right:40px;
+					}
+					#selectcard input {
+					    border: none;
+					    background-color: white;
+					}
+				</textarea>
+			</div> 
+		</div>
+	</body>
+	<style>
+		
+	</style>
+	<script src='./js/nej/src/define.js?pro=./'></script>
+	<script>
+		var f = function() {
+			var _ = NEJ.P,
+			_e = _("nej.e"),
+			_v = _("nej.v"),
+			_u = _("nej.u"),
+			_p = _("nej.ui");
+			_j = _("nej.j");
+
+			/*解析模板*/
+			_e._$parseTemplate("template-box-1");
+			_e._$parseTemplate("jst-template-1");
+
+
+			/*日历控件*/
+			var _input = _e._$get("datepick");
+			_input.value = _u._$format(new Date(), 'yyyy-MM-dd')
+			_v._$addEvent(_input, "click", handler);
+    		function handler(_event){
+        		_v._$stop(_event);//因为日历控件是卡片，在document上接收到click 事件都会回调到卡片，所以阻止掉事件
+        		var _datepick = _p._$$DatePick._$allocate({
+                    parent: _input.parentNode,                 
+                    clazz: 'm-dt',
+                    //range: [new Date(), 0],
+                    onchange: onChange
+                }); 
+    		}
+			function onChange(_value){
+				_input.value = _u._$format(_value, 'yyyy-MM-dd')
+			}
+
+			//记录全局的数据
+			var arrList = [];
+			var arrListcompleted = [];
+			var arrListactive = [];
+			var status = 'all';	
+			var idNum = 0;	
+			/*
+			页面一刷出来就访问后台，请求数据库存储的数据，渲染到列表中
+			get方法
+			 */
+			var _url_search = './api/search.php';
+			var _url_add = './api/add.php';
+			var _url_delete = './api/delete.php';
+			var _url_changeStatus = './api/changeStatus.php';
+			var _url_edit = './api/edit.php';
+			var _url_searchkey = './api/searchKeywords.php';
+			/*请求函数RequestFunc(_url, _sync, _type, _method, _query, _data, _callback)*/
+			var _requestId = RequestFunc(_url_search, false, 'json', 'GET', status, null, _Reqcallback);
+
+			/*ToDoList的实现*/
+			var _todoInput = _e._$get("todolist");
+			var _delbox = _e._$get("todoitems");
+			/*添加事件*/
+			_v._$addEvent(_todoInput, "keyup", keyuphandler);
+			_v._$addEvent(_delbox, "mouseover", showfunc);
+			_v._$addEvent(_delbox, "mouseout", hidefunc);
+			/*Delete事件*/
+			_v._$addEvent(_e._$get("todoitems"), "click", clickfunc);
+			/*编辑事件*/
+			_v._$addEvent(_delbox, 'change', editfunc);
+			/*查询事件*/
+			_v._$addEvent(_e._$get("search"), "click", searchfunc);
+			
+			/*各个事件处理函数*/
+			function keyuphandler(_value) {
+				if(_value.keyCode === 13)
+				{
+					if(_todoInput.value != '')
+					{
+						/*var _idNum = arrList.length + 1;*/
+						var _dataStr = 'value='+ escape(_todoInput.value)+'&date='+_input.value+'&status=active&count=0';
+						console.log(_dataStr);
+						var _requestId = RequestFunc(_url_add, false, 'json', 'POST', status, _dataStr, function() {
+								RequestFunc(_url_search, false, 'json', 'POST', status, null, _Reqcallback)
+						});
+						/*
+						关于在不同状态下不同渲染，在后台进行了筛选*/
+					}
+					_todoInput.value = '';
+				}
+			}
+			function showfunc(_value) {
+				//获得点击的索引值
+				if(_value.target.nodeName == "LI") {
+					var _text = _e._$getChildren(_value.target)[0].innerText;
+					var _btn = _e._$getByClassName(_delbox,"destroy");
+					for(var i = 0; i < _btn.length; i++) {
+						if(_btn[i].innerText == _text) {
+							_e._$setStyle(_btn[i],"display","inline-block");
+						}
+					}
+				}
+				if(_value.target.nodeName == "BUTTON") {
+					var _text = _value.target.innerText;
+					var _btn = _e._$getByClassName(_delbox,"destroy");
+					for(var i = 0; i < _btn.length; i++) {
+						if(_btn[i].innerText == _text) {
+							_e._$setStyle(_btn[i],"display","inline-block");
+						}
+					}
+				}
+			}
+			function hidefunc(_value) {
+				if(_value.target.nodeName == "LI" && (_value.toElement.nodeName != null) &&
+				  	(_value.toElement.nodeName == "DIV" || _value.toElement.nodeName == "LI" ||
+				  		_value.toElement.nodeName == "BODY" || _value.toElement.id == "todolist")) {
+					var _text = _e._$getChildren(_value.target)[0].innerText;
+					var _btn = _e._$getByClassName(_delbox,"destroy");
+					for(var i = 0; i < _btn.length; i++) {
+						if(_btn[i].innerText == _text) {
+							_e._$setStyle(_btn[i],"display","none");
+						}
+					}
+				}
+			}
+			function clickfunc(_event) {
+				/*
+				删除表项
+				 */
+				if(_event.target.nodeName == "BUTTON") {
+					var _idStr = "id=" + (_event.target.innerText);
+
+					console.log(_event.target.innerText);
+					var _requestId = RequestFunc(_url_delete, false, 'text', 'POST', status, _idStr, 
+						function (){
+							RequestFunc(_url_search, false, 'json', 'GET', status, null, _Reqcallback);
+						});
+				}
+				/*为三个筛选按钮添加事件处理*/
+				if(_event.target.nodeName == "INPUT") {
+					/*过滤掉点击条目的INPUT*/
+					if(_event.target.id != "") {
+						if(_event.target.id == "all") {
+							status = "all";
+						} else if(_event.target.id == "completed") {
+							status = 'completed';
+						} else {
+							status = 'active';
+						}
+						var _requestId = RequestFunc(_url_search, false, 'json', 'GET', status, null, _Reqcallback);
+					}
+				}
+				else if(_event.target.nodeName == "SPAN"){
+					/*
+					点击前面选中框时，进行的处理
+					在数据库中将对应的项的status改为completed
+					 */
+					var _idStr = 'id=' + _event.path[1].className.split('-')[1];
+					RequestFunc(_url_changeStatus, false, 'text', 'POST', status, _idStr, 
+						function() {
+						RequestFunc(_url_search, false, 'json', 'GET', status, null, _Reqcallback);
+					});
+				}
+			}
+			function editfunc(_value) {
+				//确定修改的索引id
+				var _id = parseInt(_value.path[1].className.split('-')[1]);
+				var _dataStr = 'id=' + _id + '&value=' + escape(_value.target.value);
+				RequestFunc(_url_edit, false, 'text', 'POST', status, _dataStr, function(_data) {
+					console.log(_data);
+				});
+			}
+			function searchfunc(_value) {
+				var _searchval = _todoInput.value;
+				var _flag = 0;
+				if(_searchval != "") {
+					var _keywordStr = 'key=' + escape(_todoInput.value);
+					RequestFunc(_url_searchkey, false, 'json', 'POST', 'all', _keywordStr, function(_data) {
+						if(_data.length) {
+							_Reqcallback(_data);
+						} else {
+							alert("查找失败");
+						}
+					});
+				}
+			}
+			/*
+			把请求接口封装成一个函数
+			 */
+			function RequestFunc(_url, _sync, _type, _method, _query, _dataStr, _callback) {
+				return _j._$request(_url,{
+					sync:_sync,
+					type:_type,
+					query: "status=" + _query,
+					data: _dataStr,
+					method:_method,
+			       	onload: function(_data) {
+			       		_callback(_data);
+			       	}
+		        });
+					           	
+			}
+			function _Reqcallback(_data) {
+				for(var i = 0; i < _data.length; i++) {
+		           	_data[i].value = unescape(_data[i].value);
+		        }
+		        arrList = _data;
+		        _e._$get('todoitems').innerHTML = _e._$getHtmlTemplate('jst-template-1',{
+					arr: _data,
+				    arrAll: _data
+				});
+			}
+		}
+		define(['{lib}ui/datepick/datepick.js', '{lib}util/template/tpl.js', '{lib}util/template/jst.js'],f);
+	</script>
+</html>

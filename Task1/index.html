@@ -1,0 +1,400 @@
+<html>
+	<head>
+		<meta charset='utf-8' />
+		<link rel="stylesheet" href="./css/index.css">
+	</head>
+	<body>
+		<h4>简易备忘录</h4>
+		<div id="demo">
+			<div id="datebox">
+				<input type="text" id='datepick' />
+			</div>
+			<div id="todobox">
+				<input type="text" id='todolist' />
+				<input type="button" id="search" value="查询" />
+				<div id="todoitems"></div>
+				<div id="todoitem-template" style="display:none">
+					<textarea name="jst" id="jst-template-1">
+						<ul>
+							{list arr as x}
+								<li class=index-${x_index}>
+									<label style="display:none">${x_index}</label>
+									<span id='checkbox' class=${x.status == "completed" ? 'checked' : 'unchecked'}></span>
+									<input class=${x.status == "completed" ? 'completed' : 'edit'}	value=${x.value} /> 
+									<span class="dd">${x.date}</span>
+									<button id="del" class='destroy'>${x_index}</button>
+								</li>
+							{/list}
+						</ul>
+						<div id="selectcard">
+							<span>${arrAll.length} ${arrAll.length == 1 ? "item" : "items"} left</span>
+							<input type="button" id="all" value="All" />
+							<input type="button" id="completed" value="Completed" />
+							<input type="button" id="active" value="Active" />
+						</div>
+					</textarea>
+				</div>
+				<textarea name="css" id="template-box-1">
+					#todoitems ul{
+						margin-top:0px;
+						padding: 0px;
+					}
+					#todoitems li{
+						position:relative;
+						height:45px;
+						line-height:45px;
+						color: rgba(175, 47, 47, 0.5);
+						font-weight:bold;
+						width:390px;
+						padding-left:10px;
+						text-decoration:none;
+						list-style:none;
+						border-bottom: 1px solid rgba(128, 128, 128, 0.37);
+					}
+					.completed {
+						font-weight:bold;
+						font-size:17px;
+						font-family: fantasy;
+						border:none;
+						text-decoration: line-through;
+						color: rgba(175, 47, 47, 0.2);
+					}
+					#todoitems li .dd{
+						font-size:10px;
+						color: grey;
+						font-style:italic;
+					}
+					#checkbox {
+						display:inline-block;
+						width: 16px;
+					    height: 16px;
+					    vertical-align: middle;
+					}
+					.checked {
+						background: url('./image/checked.png') no-repeat;
+					}
+					.unchecked {
+						background: url('./image/unchecked.png') no-repeat;
+					}
+					.destroy{
+						color:rgba(1,1,1,0);
+						display: none;
+						position: absolute;
+						top: 14px;
+    					right: 25px;
+						width: 16px;
+    					line-height: 20px;
+    					background: url(./image/delete.png) no-repeat center center;
+    					height: 16px;
+    					border: none;
+    					vertical-align: sub;
+    					transition: all 0.3s ease-out;
+    					cursor:auto;
+					}
+					.edit {
+						font-weight:bold;
+						font-size:17px;
+						font-family: fantasy;
+						color: rgba(175, 47, 47, 0.5);
+						border:none;
+					}
+					#selectcard {
+						padding-bottom: 10px;
+    					padding-left: 15px;
+					}
+					#selectcard span {
+						margin-right:40px;
+					}
+					#selectcard input {
+					    border: none;
+					    background-color: white;
+					}
+				</textarea>
+			</div> 
+		</div>
+	</body>
+	<style>
+		
+	</style>
+	<script src='./js/nej/src/define.js?pro=./'></script>
+	<script>
+		var f = function() {
+			var _ = NEJ.P,
+			_e = _("nej.e"),
+			_v = _("nej.v"),
+			_u = _("nej.u"),
+			_p = _("nej.ui");
+
+			/*解析模板*/
+			_e._$parseTemplate("template-box-1");
+			_e._$parseTemplate("jst-template-1");
+
+
+			/*日历控件*/
+			var _input = _e._$get("datepick");
+			_input.value = _u._$format(new Date(), 'yyyy-MM-dd')
+			_v._$addEvent(_input, "click", handler);
+    		function handler(_event){
+        		_v._$stop(_event);//因为日历控件是卡片，在document上接收到click 事件都会回调到卡片，所以阻止掉事件
+        		var _datepick = _p._$$DatePick._$allocate({
+                    parent: _input.parentNode,                 
+                    clazz: 'm-dt',
+                    //range: [new Date(), 0],
+                    onchange: onChange
+                }); 
+    		}
+			function onChange(_value){
+				_input.value = _u._$format(_value, 'yyyy-MM-dd')
+			}
+
+			//记录全局的数据
+			var arrList = [];
+			var arrListcompleted = [];
+			var arrListactive = [];
+			var status = 'all';
+			
+			/*ToDoList的实现*/
+			var _todoInput = _e._$get("todolist");
+			var _delbox = _e._$get("todoitems");
+			/*添加事件*/
+			_v._$addEvent(_todoInput, "keyup", keyuphandler);
+			_v._$addEvent(_delbox, "mouseover", showfunc);
+			_v._$addEvent(_delbox, "mouseout", hidefunc);
+			/*Delete事件*/
+			_v._$addEvent(_e._$get("todoitems"), "click", deletefunc);
+			/*编辑事件*/
+			_v._$addEvent(_delbox, 'change', editfunc);
+			/*查询事件*/
+			_v._$addEvent(_e._$get("search"), "click", searchfunc);
+			
+			/*各个事件处理函数*/
+			function keyuphandler(_value) {
+				if(_value.keyCode === 13)
+				{
+					if(_todoInput.value != '')
+					{
+						arrList.push({
+							value: _todoInput.value,
+							date: _input.value,
+							status: "active",    //用于表示选项是否已完成
+							count: 0 //用于记录点击次数，从而模拟复选框
+						});
+						/*
+						需要考虑在哪种情况下进行添加？如果是显示所有列表情况下，那么就将arrList作为渲染数组。
+						如果是显示active情况下，就当前输入数据Push进active数组列表，并将arrListactive作为渲染数组。
+						如果是显示completed情况下，就将arrListcompleted作为渲染数组。
+						 */
+						if(status == 'all') {
+							_e._$get('todoitems').innerHTML = _e._$getHtmlTemplate('jst-template-1',{
+						        arr: arrList,
+						        arrAll: arrList
+						    });
+						} else if(status == 'active') {
+							arrListactive.push({
+								value: _todoInput.value,
+								date: _input.value,
+								status: "active",    //用于表示选项是否已完成
+								count: 0 //用于记录点击次数，从而模拟复选框
+							});
+							_e._$get('todoitems').innerHTML = _e._$getHtmlTemplate('jst-template-1',{
+						        arr: arrListactive,
+						        arrAll: arrList
+						    });
+						} else {
+							_e._$get('todoitems').innerHTML = _e._$getHtmlTemplate('jst-template-1',{
+						        arr: arrListcompleted,
+						        arrAll: arrList
+						    });
+						}
+						
+					}
+					_todoInput.value = '';
+				}
+			}
+			function showfunc(_value) {
+				//获得点击的索引值
+				if(_value.target.nodeName == "LI") {
+					var _index = parseInt(_e._$getChildren(_value.target)[0].innerText);
+					var _btn = _e._$getByClassName(_delbox,"destroy")[_index];
+					_e._$setStyle(_btn,"display","inline-block");
+				}
+				if(_value.target.nodeName == "BUTTON") {
+					var _index = _e._$getChildren(_value.path[1])[0].innerText;
+					var _btn = _e._$getByClassName(_delbox,"destroy")[_index];
+					_e._$setStyle(_btn,"display","inline-block");
+				}
+			}
+			function hidefunc(_value) {
+				if(_value.target.nodeName == "LI" && 
+				  	(_value.toElement.nodeName == "DIV" || _value.toElement.nodeName == "LI" ||
+				  		_value.toElement.nodeName == "BODY" || _value.toElement.id == "todolist")) {
+					var _index = parseInt(_e._$getChildren(_value.target)[0].innerText);
+					var _btn = _e._$getByClassName(_delbox,"destroy")[_index];
+					_e._$setStyle(_btn,"display","none");
+				}
+			}
+			function deletefunc(_event) {
+				if(_event.target.nodeName == "BUTTON") {
+					var _index = _e._$getChildren(_event.path[1])[0].innerText;
+					if(status == "all") {
+						arrList.splice(_index, 1);
+						_e._$get('todoitems').innerHTML = _e._$getHtmlTemplate('jst-template-1',{
+						    arr: arrList,
+					        arrAll: arrList
+					    });
+					} else if(status == 'completed') {
+						/*
+						计算出当前删除项在arrList中的索引，并将对应的删除
+						 */
+						var itemindex = arrList.indexOf(arrListcompleted[_index]);
+						arrList.splice(itemindex, 1);
+						arrListcompleted.splice(_index, 1);
+						_e._$get('todoitems').innerHTML = _e._$getHtmlTemplate('jst-template-1',{
+					        arr: arrListcompleted,
+					        arrAll: arrList
+					    });
+					} else {
+						var itemindex = arrList.indexOf(arrListactive[_index]);
+						arrList.splice(itemindex, 1);
+						arrListactive.splice(_index, 1);
+						_e._$get('todoitems').innerHTML = _e._$getHtmlTemplate('jst-template-1',{
+					        arr: arrListactive,
+					        arrAll: arrList
+					    });
+					}
+				}
+				/*为三个筛选按钮添加事件处理*/
+				if(_event.target.nodeName == "INPUT") {
+					if(_event.target.id == "all") {
+						status = "all";
+						allfunc();
+					} else if(_event.target.id == "completed") {
+						status = 'completed';
+						completedfunc();
+					} else if(_event.target.id == "active") {
+						status = 'active';
+						activefunc();
+					}
+				}
+				else if(_event.target.nodeName == "SPAN"){
+					//点击前面选中框时，进行的处理
+					var _index = parseInt(_event.path[1].className.split('-')[1]);
+					/*
+					判断当前是什么状态status == all ? completed ? active?
+					 */
+					if(status == "all") {
+						if(_index >= 0 && _index <= arrList.length)
+						{
+							if(arrList[_index].count % 2 == 0) {		
+								arrList[_index].status = "completed";
+							} else {
+								arrList[_index].status = "active";
+							}
+							arrList[_index].count++;
+						}
+						_e._$get('todoitems').innerHTML = _e._$getHtmlTemplate('jst-template-1',{
+						    arr: arrList,
+						    arrAll: arrList
+						});
+					} else if (status == "active") {
+						var _length = arrListactive.length;
+						if(_index >= 0 && _index <= _length)
+						{
+							if(arrListactive[_index].count % 2 == 0) {		
+								arrListactive[_index].status = "completed";
+								arrListactive[_index].count++;
+								arrListcompleted.push(arrListactive[_index]);
+								arrListactive.splice(_index, 1);
+							} else {
+								arrListactive[_index].status = "active";
+							}
+						}
+						_e._$get('todoitems').innerHTML = _e._$getHtmlTemplate('jst-template-1',{
+						    arr: arrListactive,
+						    arrAll: arrList
+						});
+					} else if(status == "completed") {
+						if(_index >= 0 && _index <= arrListcompleted.length)
+						{
+							if(arrListcompleted[_index].count % 2 == 0) {	
+								arrListcompleted[_index].count++;	
+								arrListcompleted[_index].status = "completed";
+							} else {
+								arrListcompleted[_index].status = "active";
+								arrListcompleted[_index].count++;
+								arrListactive.push(arrListcompleted[_index]);
+								arrListcompleted.splice(_index, 1);
+							}
+						}
+						_e._$get('todoitems').innerHTML = _e._$getHtmlTemplate('jst-template-1',{
+						    arr: arrListcompleted,
+						    arrAll: arrList
+						});
+					}
+					
+				}
+			}
+			function editfunc(_value) {
+				//确定修改的索引
+				var _index = parseInt(_value.path[1].className.split('-')[1]);
+				arrList[_index].value = _value.target.value;
+			}
+			function searchfunc(_value) {
+				var _searchval = _todoInput.value;
+				var arrSearch = [];
+				for(var i = 0;i < arrList.length; i++) {
+					if(arrList[i].value == _searchval) {
+						arrSearch.push({
+							value: arrList[i].value,
+							date: arrList[i].date,
+							status: arrList[i].status,
+							count: arrList[i].count
+						})
+						_flag = 1;
+					}
+				}
+				if(arrSearch.length == 0) {
+					alert("查无此项!");
+				} else {
+					_e._$get('todoitems').innerHTML = _e._$getHtmlTemplate('jst-template-1',{
+						    arr: arrSearch,
+						    arrAll: arrSearch
+						});
+				}
+			}
+			function allfunc() {
+				_e._$get('todoitems').innerHTML = _e._$getHtmlTemplate('jst-template-1',{
+			        arr: arrList,
+			        arrAll: arrList
+				});
+			}
+			function activefunc() {
+				/*选择出还没有完成的项,加入到未完成列表里，并渲染到模板的arr里*/
+				arrListactive = [];         /*每次需要先清空*/
+				for(var i = 0; i < arrList.length; i++) {
+					if(arrList[i].status == "active") {
+						arrListactive.push(arrList[i]);
+					}
+				}
+				_e._$get('todoitems').innerHTML = _e._$getHtmlTemplate('jst-template-1',{
+			        arr: arrListactive,
+			        arrAll: arrList
+				});
+			}
+			function completedfunc() {
+				/*选择出完成的项，加入到已完成列表里，并渲染*/
+				arrListcompleted = [];
+				for(var i = 0; i < arrList.length; i++) {
+					if(arrList[i].status == "completed") {
+						arrListcompleted.push(arrList[i]);
+					}
+				}
+				_e._$get('todoitems').innerHTML = _e._$getHtmlTemplate('jst-template-1',{
+			        arr: arrListcompleted,
+			        arrAll: arrList
+				});
+			}
+		}
+		define(['{lib}ui/datepick/datepick.js', '{lib}util/template/tpl.js', '{lib}util/template/jst.js'],f);
+	</script>
+</html>

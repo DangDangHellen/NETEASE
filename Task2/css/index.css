@@ -1,0 +1,75 @@
+/*
+* @Author: hellen
+* @Date:   2018-01-19 16:56:27
+* @Last Modified by:   hellen
+* @Last Modified time: 2018-01-30 16:23:02
+*/
+
+#datebox{
+	display:inline-block;
+}
+
+/*两个输入的Input样式设置*/
+#datepick {
+	width: 210px;
+	height:45px;
+	line-height:30px;
+	font-size:16px;
+	background: url('../image/sprite.png') right no-repeat;
+	padding: 0px 5px;
+}
+
+#todoList{
+	width:400px;
+	height:45px;
+	line-height:45px;
+	font-size:17px;
+	font-family: fantasy;
+	color: rgba(100, 100, 100, 0.5);
+	padding-left:8px;
+}
+
+#search {
+	margin-left: 10px;
+    width: 74px;
+    height: 45px;
+    line-height: 45px;
+    text-align: center;
+	border: none;
+    background-color: cornflowerblue;
+    border-radius: 10px;
+    font-size: 17px;
+    color: aliceblue;
+    font-weight: bold;
+    font-family: fantasy;
+}
+
+#todobox{
+	display:inline-block;
+}
+
+#todoitems{
+	position:absolute;
+	width:400px;
+	box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2), 0 25px 50px 0 rgba(0, 0, 0, 0.1);
+}
+
+/*日历样式设置*/
+.m-dt {
+	border-radius: 6px;
+}
+
+.m-dt .zact {
+	background: burlywood;
+}
+
+.m-dt .zday tr:first-child {
+	background-color: rgba(100, 20, 50, 0.5);
+}
+
+.m-dt .zday td {
+	border: 1px solid grey;
+	text-align: center;
+	font-size:15px;
+	font-family: fantasy;
+}
